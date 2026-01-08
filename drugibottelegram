@@ -1,0 +1,91 @@
+import requests
+from bs4 import BeautifulSoup
+import time
+
+# --- KONFIGURACJA ---
+TOKEN = "8548252608:AAEHoSvfJMwhJtTvT_r5MkuOUIBqptndINo"
+CHAT_IDS = ["6602679082", "8489716063", "7308401232"] 
+OLX_URLS = [
+    "https://www.olx.pl/elektronika/komputery/slupsk/q-komputer/?search%5Bdist%5D=30&search%5Border%5D=created_at:desc",#Komputery słupsk 50+
+    "https://www.olx.pl/nieruchomosci/mieszkania/sprzedaz/q-mieszkania-na-sprzedaż/?search%5Border%5D=created_at:desc"#mieszkania SŁupsk 50+
+]
+CHECK_INTERVAL = 60  # Co ile sekund sprawdzać
+
+seen_ads = set()
+
+def send_telegram_msg(message):
+    for chat_id in CHAT_IDS:
+        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": False
+        }
+        try:
+            r = requests.post(url, json=payload)
+            if r.status_code != 200:
+                print(f"Błąd API Telegrama dla ID {chat_id}: {r.text}")
+        except Exception as e:
+            print(f"Błąd sieciowy przy wysyłaniu: {e}")
+
+def check_olx(is_initial=False):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    new_found_total = 0
+
+    for url in OLX_URLS:
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            soup = BeautifulSoup(response.text, "html.parser")
+            ads = soup.find_all("div", {"data-cy": "l-card"})
+            
+            for ad in ads:
+                link_tag = ad.find("a")
+                if not link_tag: continue
+                
+                raw_link = link_tag['href']
+                link = "https://www.olx.pl" + raw_link if not raw_link.startswith('http') else raw_link
+                
+                # Unikalne ID ogłoszenia
+                ad_id = link.split("-")[-1].replace(".html", "")
+
+                if ad_id not in seen_ads:
+                    # Jeśli to NIE jest pierwsze uruchomienie, pobierz dane i wyślij powiadomienie
+                    if not is_initial:
+                        title = ad.find("h6").text if ad.find("h6") else "Brak tytułu"
+                        price = ad.find("p", {"data-testid": "ad-price"}).text if ad.find("p", {"data-testid": "ad-price"}) else "Brak ceny"
+                        location = ad.find("p", {"data-testid": "location-date"}).text if ad.find("p", {"data-testid": "location-date"}) else "Brak lokalizacji"
+
+                        msg = (
+                            f"🔔 <b>NOWE OGŁOSZENIE!</b>\n\n"
+                            f"📦 <b>{title}</b>\n"
+                            f"💰 Cena: <b>{price}</b>\n"
+                            f"📍 {location}\n\n"
+                            f"🔗 <a href='{link}'>Otwórz ogłoszenie</a>"
+                        )
+                        send_telegram_msg(msg)
+                    
+                    seen_ads.add(ad_id)
+                    new_found_total += 1
+                    
+        except Exception as e:
+            print(f"Błąd przy URL {url}: {e}")
+
+    if is_initial:
+        print(f"[{time.strftime('%H:%M:%S')}] Pierwsze skanowanie zakończone. Zapamiętano {len(seen_ads)} ofert.")
+    else:
+        print(f"[{time.strftime('%H:%M:%S')}] Sprawdzono. Nowych ofert: {new_found_total}")
+
+# --- URUCHOMIENIE BOTA ---
+print("Bot wystartował. Trwa pierwsze skanowanie (bez wysyłania)...")
+
+# 1. Pierwsze skanowanie - tylko dodaje do seen_ads
+check_olx(is_initial=True)
+
+# 2. Główna pętla - tutaj już będzie wysyłać
+while True:
+    time.sleep(CHECK_INTERVAL)
+    check_olx(is_initial=False)
