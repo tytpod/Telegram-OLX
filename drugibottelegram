@@ -4,7 +4,7 @@ import time
 
 # --- KONFIGURACJA ---
 TOKEN = "8548252608:AAEHoSvfJMwhJtTvT_r5MkuOUIBqptndINo"
-CHAT_IDS = ["6602679082", "8489716063", "7308401232"] 
+CHAT_IDS = ["6602679082"] #7308401232-Żebro Tytus-6602679082  Rafał-8489716063 
 OLX_URLS = [
     "https://www.olx.pl/elektronika/komputery/slupsk/q-komputer/?search%5Bdist%5D=30&search%5Border%5D=created_at:desc",#Komputery słupsk 50+
     "https://www.olx.pl/nieruchomosci/mieszkania/sprzedaz/q-mieszkania-na-sprzedaż/?search%5Border%5D=created_at:desc"#mieszkania SŁupsk 50+
